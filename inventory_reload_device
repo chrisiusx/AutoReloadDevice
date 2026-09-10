@@ -1,0 +1,60 @@
+using { /Fortnite.com/Devices }
+using { /Verse.org/Simulation }
+
+# Data class to map a weapon's detector, remover, and granter index.
+# Must be @editable to be configured in the UEFN editor.
+reload_map := class<concrete>:
+    @editable
+    Detector : conditional_button_device = conditional_button_device{}
+
+    @editable
+    Remover : item_remover_device = item_remover_device{}
+
+    @editable
+    GranterIndex : int = 0
+
+# Main device that orchestrates the inventory refresh logic.
+inventory_reloader_device := class(creative_device):
+    # The trigger that initiates the reload process.
+    @editable
+    Trigger : trigger_device = trigger_device{}
+
+    # A single item granter containing ALL weapons to be re-granted.
+    # The index of each weapon in this granter's Item List must match
+    # the GranterIndex in the corresponding reload_map.
+    @editable
+    ItemGranter : item_granter_device = item_granter_device{}
+
+    # Array of weapon mappings. Configure one entry for each weapon you want to support.
+    @editable
+    ReloadMaps : []reload_map = array{}
+    
+    @editable
+    GrantSleep : float = 0.1
+
+    # Subscribe to the trigger event when the experience starts.
+    OnBegin<override>()<suspends>:void =
+        Trigger.TriggeredEvent.Subscribe(OnTriggered)
+
+    # Event handler called when the trigger is activated.
+    OnTriggered(MaybeAgent : ?agent) : void =
+        # Safely unwrap the optional agent from the trigger event.
+        if (Agent := MaybeAgent?):
+            spawn:
+                RefreshInventory(Agent)
+
+    # Iterates through all configured weapon maps and refreshes each one the player is carrying.
+    RefreshInventory(Agent : agent)<suspends> : void =
+        for (Map : ReloadMaps):
+            # GetItemCount returns how many instances of the configured item the player has.
+            # This correctly handles 0, 1, or multiple instances (e.g., two of the same weapon).
+            ItemCount := Map.Detector.GetItemCount(Agent, 0)
+    
+            # Loop once for each instance of the weapon to handle duplicates.
+            # If ItemCount is 0, this loop is skipped.
+            for (I := 0..ItemCount - 1):
+                Map.Remover.Remove(Agent)
+                # Sleep briefly to ensure the inventory state updates before granting the new item.
+                # This prevents race conditions where the grant might fail if the removal hasn't fully processed.
+                Sleep(GrantSleep)
+                ItemGranter.GrantItemIndex(Agent, Map.GranterIndex)
