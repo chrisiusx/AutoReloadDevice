@@ -45,16 +45,19 @@ inventory_reloader_device := class(creative_device):
 
     # Iterates through all configured weapon maps and refreshes each one the player is carrying.
     RefreshInventory(Agent : agent)<suspends> : void =
-        for (Map : ReloadMaps):
-            # GetItemCount returns how many instances of the configured item the player has.
-            # This correctly handles 0, 1, or multiple instances (e.g., two of the same weapon).
-            ItemCount := Map.Detector.GetItemCount(Agent, 0)
-    
-            # Loop once for each instance of the weapon to handle duplicates.
-            # If ItemCount is 0, this loop is skipped.
-            for (I := 0..ItemCount - 1):
-                Map.Remover.Remove(Agent)
-                # Sleep briefly to ensure the inventory state updates before granting the new item.
-                # This prevents race conditions where the grant might fail if the removal hasn't fully processed.
-                Sleep(GrantSleep)
-                ItemGranter.GrantItemIndex(Agent, Map.GranterIndex)
+        Players := GetPlayspace().GetPlayers()
+
+        for(Player:Players):
+            for (Map : ReloadMaps):
+                # GetItemCount returns how many instances of the configured item the player has.
+                # This correctly handles 0, 1, or multiple instances (e.g., two of the same weapon).
+                ItemCount := Map.Detector.GetItemCount(Player, 0)
+        
+                # Loop once for each instance of the weapon to handle duplicates.
+                # If ItemCount is 0, this loop is skipped.
+                for (I := 0..ItemCount - 1):
+                    Map.Remover.Remove(Player)
+                    # Sleep briefly to ensure the inventory state updates before granting the new item.
+                    # This prevents race conditions where the grant might fail if the removal hasn't fully processed.
+                    Sleep(GrantSleep)
+                    ItemGranter.GrantItemIndex(Player, Map.GranterIndex)
